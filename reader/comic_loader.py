@@ -93,6 +93,7 @@ class ComicBook:
         """Load page list from a CBR (RAR) file."""
         try:
             import rarfile
+            self._configure_unrar(rarfile)
             with rarfile.RarFile(self.file_path, "r") as rf:
                 all_files = rf.namelist()
 
@@ -121,6 +122,20 @@ class ComicBook:
             )
         except Exception as e:
             raise ValueError(f"Error reading CBR file: {e}")
+
+    def _configure_unrar(self, rarfile_module):
+        """Configure the unrar tool path if not in system PATH."""
+        if not shutil.which("unrar"):
+            winrar_paths = [
+                r"C:\Program Files\WinRAR\UnRAR.exe",
+                r"C:\Program Files (x86)\WinRAR\UnRAR.exe",
+                r"D:\Program Files\WinRAR\UnRAR.exe",
+                r"D:\Program Files (x86)\WinRAR\UnRAR.exe",
+            ]
+            for path in winrar_paths:
+                if os.path.exists(path):
+                    rarfile_module.UNRAR_TOOL = path
+                    break
 
     @property
     def page_count(self) -> int:
@@ -182,6 +197,7 @@ class ComicBook:
                     f.write(data)
         elif self._archive_type == "cbr":
             import rarfile
+            self._configure_unrar(rarfile)
             with rarfile.RarFile(self.file_path, "r") as rf:
                 data = rf.read(archive_name)
                 with open(output_path, "wb") as f:
