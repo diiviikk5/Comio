@@ -442,10 +442,16 @@ class ComioMainWindow(QMainWindow):
         self._viewer = ComicViewer()
         self._viewer.page_changed.connect(self._on_page_changed)
         self._viewer.zoom_changed.connect(self._on_zoom_changed)
+        self._viewer.next_page_requested.connect(self._next_page)
+        self._viewer.prev_page_requested.connect(self._prev_page)
         reader_layout.addWidget(self._viewer, stretch=1)
 
         self._nav_bar = PageNavigationBar()
         self._nav_bar.page_requested.connect(self._go_to_page)
+        self._nav_bar.fit_mode_requested.connect(self._set_fit_mode)
+        self._nav_bar.view_mode_requested.connect(self._set_view_mode)
+        self._nav_bar.fullscreen_requested.connect(self._toggle_fullscreen)
+        self._nav_bar.update_modes(self._settings.fit_mode, self._settings.view_mode)
         reader_layout.addWidget(self._nav_bar)
 
         self._stack.addWidget(reader_container)
@@ -514,6 +520,11 @@ class ComioMainWindow(QMainWindow):
             self._current_comic = ComicBook(file_path)
             self._viewer.total_pages = self._current_comic.page_count
             self._viewer.clear_cache()
+
+            # Restore preferred fit and view modes from settings
+            self._viewer.view_mode = self._settings.view_mode
+            self._viewer.fit_mode = self._settings.fit_mode
+            self._nav_bar.update_modes(self._viewer.fit_mode, self._viewer.view_mode)
 
             # Check for manga mode
             if self._current_comic.metadata.is_manga:
@@ -623,12 +634,14 @@ class ComioMainWindow(QMainWindow):
     def _set_view_mode(self, mode: str):
         self._viewer.view_mode = mode
         self._settings.view_mode = mode
+        self._nav_bar.update_modes(self._viewer.fit_mode, self._viewer.view_mode)
         if self._current_comic:
             self._go_to_page(self._viewer.current_page)
 
     def _set_fit_mode(self, mode: str):
         self._viewer.fit_mode = mode
         self._settings.fit_mode = mode
+        self._nav_bar.update_modes(self._viewer.fit_mode, self._viewer.view_mode)
 
     # ── Theme ─────────────────────────────────────────────────────────
 

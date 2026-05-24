@@ -9,7 +9,7 @@ from typing import Optional
 from PyQt6.QtWidgets import (
     QGraphicsView, QGraphicsScene, QGraphicsPixmapItem,
     QWidget, QVBoxLayout, QHBoxLayout, QLabel, QSlider,
-    QSizePolicy
+    QSizePolicy, QPushButton, QFrame, QButtonGroup
 )
 from PyQt6.QtGui import (
     QPixmap, QImage, QWheelEvent, QKeyEvent,
@@ -61,6 +61,8 @@ class ComicViewer(QGraphicsView):
     page_changed = pyqtSignal(int)
     zoom_changed = pyqtSignal(float)
     view_mode_changed = pyqtSignal(str)
+    next_page_requested = pyqtSignal()
+    prev_page_requested = pyqtSignal()
 
     # View modes
     MODE_SINGLE = "single"
@@ -72,6 +74,7 @@ class ComicViewer(QGraphicsView):
     FIT_HEIGHT = "height"
     FIT_PAGE = "page"
     FIT_ORIGINAL = "original"
+    FIT_AUTO = "auto"
 
     def __init__(self, parent=None):
         super().__init__(parent)
@@ -177,6 +180,21 @@ class ComicViewer(QGraphicsView):
         elif self._fit_mode == self.FIT_PAGE:
             self.fitInView(scene_rect, Qt.AspectRatioMode.KeepAspectRatio)
             self._zoom_factor = self.transform().m11()
+            
+        elif self._fit_mode == self.FIT_AUTO:
+            viewport_w = self.viewport().width() - 4
+            viewport_h = self.viewport().height() - 4
+            page_w = scene_rect.width()
+            page_h = scene_rect.height()
+            
+            if page_w > 0 and page_h > 0:
+                if page_w / page_h > 1.2:
+                    scale = viewport_w / page_w
+                else:
+                    scale = viewport_h / page_h
+                self.resetTransform()
+                self.scale(scale, scale)
+                self._zoom_factor = scale
             
         elif self._fit_mode == self.FIT_ORIGINAL:
             self.resetTransform()
@@ -304,8 +322,28 @@ class ComicViewer(QGraphicsView):
                 self.zoom_out(1.1)
             event.accept()
         else:
-            # Default scroll behavior
-            super().wheelEvent(event)
+            # Check scroll boundaries for page changes
+            v_bar = self.verticalScrollBar()
+            delta = event.angleDelta().y()
+            
+            if not v_bar.isVisible() or v_bar.maximum() == 0:
+                # Page fits fully in viewport, direct scroll turns pages
+                if delta < -40:
+                    self.next_page_requested.emit()
+                elif delta > 40:
+                    self.prev_page_requested.emit()
+                event.accept()
+            else:
+                val = v_bar.value()
+                max_val = v_bar.maximum()
+                if val >= max_val - 2 and delta < -40:
+                    self.next_page_requested.emit()
+                    event.accept()
+                elif val <= 2 and delta > 40:
+                    self.prev_page_requested.emit()
+                    event.accept()
+                else:
+                    super().wheelEvent(event)
 
     def resizeEvent(self, event: QResizeEvent):
         """Re-apply fit mode when the view is resized."""
@@ -336,34 +374,165 @@ class ComicViewer(QGraphicsView):
 
 class PageNavigationBar(QWidget):
     """
-    Bottom bar showing current page, slider, and zoom info.
+    Premium reader control bar showing page info, fitting controls, view modes, and zoom.
     """
     page_requested = pyqtSignal(int)
+    fit_mode_requested = pyqtSignal(str)
+    view_mode_requested = pyqtSignal(str)
+    fullscreen_requested = pyqtSignal()
     
     def __init__(self, parent=None):
         super().__init__(parent)
-        self.setFixedHeight(40)
+        self.setFixedHeight(44)
+        
+        # Style
+        self.setStyleSheet("""
+            QWidget {
+                background-color: #111111;
+                border-top: 1px solid #1c1c1c;
+            }
+            QLabel {
+                color: #a0a0a0;
+                font-size: 11px;
+                font-weight: 500;
+                background: transparent;
+                border: none;
+            }
+            QSlider::groove:horizontal {
+                height: 4px;
+                background: #262626;
+                border-radius: 2px;
+                border: none;
+            }
+            QSlider::sub-page:horizontal {
+                background: #F97316;
+                border-radius: 2px;
+            }
+            QSlider::handle:horizontal {
+                background: #FB923C;
+                width: 12px;
+                height: 12px;
+                margin-top: -4px;
+                margin-bottom: -4px;
+                border-radius: 6px;
+            }
+            QSlider::handle:horizontal:hover {
+                background: #F97316;
+            }
+            QFrame#controlGroup {
+                background-color: #161616;
+                border: 1px solid #222222;
+                border-radius: 6px;
+                padding: 1px;
+            }
+            QPushButton {
+                background-color: transparent;
+                color: #888888;
+                border: none;
+                border-radius: 4px;
+                padding: 4px 10px;
+                font-size: 11px;
+                font-weight: 600;
+            }
+            QPushButton:hover {
+                color: #e0e0e0;
+                background-color: #222222;
+            }
+            QPushButton:checked {
+                background-color: #262626;
+                color: #F97316;
+                font-weight: 700;
+            }
+            QPushButton#actionBtn {
+                background-color: #161616;
+                color: #a0a0a0;
+                border: 1px solid #222222;
+                border-radius: 6px;
+                padding: 4px 10px;
+                font-size: 11px;
+            }
+            QPushButton#actionBtn:hover {
+                border-color: #F97316;
+                color: white;
+                background-color: #1c1c1c;
+            }
+        """)
         
         layout = QHBoxLayout(self)
-        layout.setContentsMargins(12, 4, 12, 4)
+        layout.setContentsMargins(16, 4, 16, 4)
+        layout.setSpacing(16)
         
-        # Page info label
+        # 1. Page Info
         self._page_label = QLabel("Page 0 / 0")
-        self._page_label.setStyleSheet("color: #888; font-size: 12px;")
+        self._page_label.setFixedWidth(85)
         layout.addWidget(self._page_label)
         
-        # Page slider
+        # 2. Page Slider
         self._slider = QSlider(Qt.Orientation.Horizontal)
         self._slider.setMinimum(0)
         self._slider.setMaximum(0)
         self._slider.valueChanged.connect(self._on_slider_changed)
         layout.addWidget(self._slider, stretch=1)
         
-        # Zoom label
+        # 3. Zoom Display
         self._zoom_label = QLabel("100%")
-        self._zoom_label.setStyleSheet("color: #888; font-size: 12px;")
+        self._zoom_label.setAlignment(Qt.AlignmentFlag.AlignCenter)
+        self._zoom_label.setFixedWidth(40)
         layout.addWidget(self._zoom_label)
-    
+        
+        # 4. Fit Mode Group (Segmented Control)
+        fit_group = QFrame()
+        fit_group.setObjectName("controlGroup")
+        fit_layout = QHBoxLayout(fit_group)
+        fit_layout.setContentsMargins(0, 0, 0, 0)
+        fit_layout.setSpacing(0)
+        
+        self._fit_buttons = {}
+        modes = [("Auto", "auto"), ("Page", "page"), ("Width", "width"), ("Height", "height")]
+        from PyQt6.QtWidgets import QButtonGroup
+        self._fit_btn_group = QButtonGroup(self)
+        self._fit_btn_group.setExclusive(True)
+        
+        for label, code in modes:
+            btn = QPushButton(label)
+            btn.setCheckable(True)
+            btn.clicked.connect(lambda checked, c=code: self.fit_mode_requested.emit(c))
+            self._fit_btn_group.addButton(btn)
+            fit_layout.addWidget(btn)
+            self._fit_buttons[code] = btn
+            
+        self._fit_buttons["width"].setChecked(True)  # default
+        layout.addWidget(fit_group)
+        
+        # 5. View Mode Group (Segmented Control)
+        view_group = QFrame()
+        view_group.setObjectName("controlGroup")
+        view_layout = QHBoxLayout(view_group)
+        view_layout.setContentsMargins(0, 0, 0, 0)
+        view_layout.setSpacing(0)
+        
+        self._view_buttons = {}
+        v_modes = [("Single", "single"), ("Double", "double")]
+        self._view_btn_group = QButtonGroup(self)
+        self._view_btn_group.setExclusive(True)
+        
+        for label, code in v_modes:
+            btn = QPushButton(label)
+            btn.setCheckable(True)
+            btn.clicked.connect(lambda checked, c=code: self.view_mode_requested.emit(c))
+            self._view_btn_group.addButton(btn)
+            view_layout.addWidget(btn)
+            self._view_buttons[code] = btn
+            
+        self._view_buttons["single"].setChecked(True)
+        layout.addWidget(view_group)
+        
+        # 6. Fullscreen Action Button
+        self._fs_btn = QPushButton("📺 Fullscreen")
+        self._fs_btn.setObjectName("actionBtn")
+        self._fs_btn.clicked.connect(self.fullscreen_requested.emit)
+        layout.addWidget(self._fs_btn)
+        
     def update_page(self, current: int, total: int):
         """Update the page display."""
         self._page_label.setText(f"Page {current + 1} / {total}")
@@ -371,10 +540,24 @@ class PageNavigationBar(QWidget):
         self._slider.setMaximum(max(0, total - 1))
         self._slider.setValue(current)
         self._slider.blockSignals(False)
-    
+        
     def update_zoom(self, zoom: float):
         """Update the zoom display."""
         self._zoom_label.setText(f"{zoom * 100:.0f}%")
-    
+        
+    def update_modes(self, fit_mode: str, view_mode: str):
+        """Sync active buttons in Segmented controls with current state."""
+        btn_fit = self._fit_buttons.get(fit_mode)
+        if btn_fit:
+            btn_fit.blockSignals(True)
+            btn_fit.setChecked(True)
+            btn_fit.blockSignals(False)
+            
+        btn_view = self._view_buttons.get(view_mode)
+        if btn_view:
+            btn_view.blockSignals(True)
+            btn_view.setChecked(True)
+            btn_view.blockSignals(False)
+            
     def _on_slider_changed(self, value: int):
         self.page_requested.emit(value)
