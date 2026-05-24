@@ -264,6 +264,9 @@ class ComioMainWindow(QMainWindow):
         self._settings.ensure_directories()
         self._current_comic: Optional[ComicBook] = None
         self._download_manager = DownloadManager()
+        self._download_manager.progress_updated.connect(self._on_download_progress)
+        self._download_manager.download_completed.connect(self._on_download_completed)
+        self._download_manager.download_failed.connect(self._on_download_failed)
 
         # Setup
         self.setWindowTitle("COMIO — Comic Reader")
@@ -706,10 +709,7 @@ class ComioMainWindow(QMainWindow):
         self._download_progress.setValue(0)
         self._status_label.setText(f"⬇️ Downloading: {comic.title}")
 
-        # Set up callbacks
-        self._download_manager.on_progress = self._on_download_progress
-        self._download_manager.on_completed = self._on_download_completed
-        self._download_manager.on_failed = self._on_download_failed
+
 
     def _on_download_progress(self, task):
         self._download_progress.setValue(int(task.progress))

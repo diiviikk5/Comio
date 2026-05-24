@@ -9,7 +9,7 @@ import urllib.request
 import urllib.error
 from typing import Optional
 from dataclasses import dataclass
-from PyQt6.QtCore import QThread, pyqtSignal, QMutex, QMutexLocker
+from PyQt6.QtCore import QObject, QThread, pyqtSignal, QMutex, QMutexLocker
 
 
 @dataclass
@@ -147,24 +147,22 @@ class DownloadWorker(QThread):
             task.status = "failed"
             task.error = str(e)
             self.download_failed.emit(task.url, str(e))
-
-
-class DownloadManager:
+class DownloadManager(QObject):
     """
     Manages a queue of downloads with concurrent download support.
+    Emits thread-safe Qt signals for GUI updates.
     """
+    progress_updated = pyqtSignal(object)   # DownloadTask
+    download_completed = pyqtSignal(object) # DownloadTask
+    download_failed = pyqtSignal(object)    # DownloadTask
     
     def __init__(self, max_concurrent: int = 2):
+        super().__init__()
         self._queue: list[DownloadTask] = []
         self._active: dict[str, DownloadWorker] = {}  # url -> worker
         self._completed: list[DownloadTask] = []
         self._max_concurrent = max_concurrent
         self._mutex = QMutex()
-        
-        # Callbacks
-        self.on_progress = None  # (task) -> None
-        self.on_completed = None  # (task) -> None
-        self.on_failed = None  # (task) -> None
     
     def add_download(self, url: str, filename: str, destination: str,
                       identifier: str = "", title: str = "") -> DownloadTask:
@@ -201,8 +199,8 @@ class DownloadManager:
     def _on_progress(self, url: str, downloaded: int, total: int, speed: float):
         """Handle download progress update."""
         task = self._find_active_task(url)
-        if task and self.on_progress:
-            self.on_progress(task)
+        if task:
+            self.progress_updated.emit(task)
     
     def _on_completed(self, url: str, output_path: str):
         """Handle download completion."""
@@ -211,8 +209,7 @@ class DownloadManager:
             if worker:
                 task = worker._task
                 self._completed.append(task)
-                if self.on_completed:
-                    self.on_completed(task)
+                self.download_completed.emit(task)
         
         self._process_queue()
     
@@ -222,8 +219,7 @@ class DownloadManager:
             worker = self._active.pop(url, None)
             if worker:
                 task = worker._task
-                if self.on_failed:
-                    self.on_failed(task)
+                self.download_failed.emit(task)
         
         self._process_queue()
     
