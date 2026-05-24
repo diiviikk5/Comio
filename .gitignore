@@ -1,0 +1,27 @@
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+.pytest_cache/
+.venv/
+venv/
+ENV/
+env/
+
+# COMIO Reader local data
+/reader/.thumbnails/
+/reader/Downloads/
+/reader/COMIO Library/
+
+# Node / Next.js
+/web/node_modules/
+/web/.next/
+/web/out/
+/web/build/
+/web/.env*.local
+
+# OS / IDE
+.DS_Store
+Thumbs.db
+.vscode/
+.idea/
