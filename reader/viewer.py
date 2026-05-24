@@ -9,13 +9,14 @@ from typing import Optional
 from PyQt6.QtWidgets import (
     QGraphicsView, QGraphicsScene, QGraphicsPixmapItem,
     QWidget, QVBoxLayout, QHBoxLayout, QLabel, QSlider,
-    QSizePolicy, QPushButton, QFrame, QButtonGroup
+    QSizePolicy, QPushButton, QFrame, QButtonGroup,
+    QGraphicsOpacityEffect
 )
 from PyQt6.QtGui import (
     QPixmap, QImage, QWheelEvent, QKeyEvent,
     QPainter, QColor, QMouseEvent, QResizeEvent
 )
-from PyQt6.QtCore import Qt, QRectF, pyqtSignal, QTimer, QThread, pyqtSlot
+from PyQt6.QtCore import Qt, QRectF, pyqtSignal, QTimer, QThread, pyqtSlot, QPropertyAnimation
 from PIL import Image
 
 
@@ -87,6 +88,7 @@ class ComicViewer(QGraphicsView):
         self._fit_mode = self.FIT_WIDTH
         self._reading_direction = "ltr"  # or "rtl"
         self._is_fullscreen = False
+        self._reader_filter = "none"  # "none", "sepia", "warm", "dim"
 
         # Page cache
         self._page_cache: dict[int, QPixmap] = {}
@@ -123,18 +125,20 @@ class ComicViewer(QGraphicsView):
     # ── Page Display ──────────────────────────────────────────────────
 
     def display_page(self, pixmap: QPixmap, page_index: int):
-        """Display a single page."""
+        """Display a single page with transition."""
         self._scene.clear()
+        self._second_item = None
         self._current_item = self._scene.addPixmap(pixmap)
         self._current_page = page_index
         self._page_cache[page_index] = pixmap
         self._trim_cache()
         self._apply_fit_mode()
+        self._animate_fade_in()
         self.page_changed.emit(page_index)
 
     def display_double_page(self, left_pixmap: QPixmap, right_pixmap: QPixmap,
                              left_index: int, right_index: int):
-        """Display two pages side by side."""
+        """Display two pages side by side with transition."""
         self._scene.clear()
 
         # For RTL reading, swap the pages
@@ -153,7 +157,53 @@ class ComicViewer(QGraphicsView):
         self._page_cache[right_index] = right_pixmap
         self._trim_cache()
         self._apply_fit_mode()
+        self._animate_fade_in()
         self.page_changed.emit(self._current_page)
+
+    def _animate_fade_in(self):
+        """Smoothly fade in the displayed page(s) over 180ms."""
+        if not self._current_item:
+            return
+            
+        self._opacity_effect_1 = QGraphicsOpacityEffect()
+        self._current_item.setGraphicsEffect(self._opacity_effect_1)
+        
+        self._anim_1 = QPropertyAnimation(self._opacity_effect_1, b"opacity")
+        self._anim_1.setDuration(180)
+        self._anim_1.setStartValue(0.0)
+        self._anim_1.setEndValue(1.0)
+        self._anim_1.start()
+        
+        if self._second_item:
+            self._opacity_effect_2 = QGraphicsOpacityEffect()
+            self._second_item.setGraphicsEffect(self._opacity_effect_2)
+            
+            self._anim_2 = QPropertyAnimation(self._opacity_effect_2, b"opacity")
+            self._anim_2.setDuration(180)
+            self._anim_2.setStartValue(0.0)
+            self._anim_2.setEndValue(1.0)
+            self._anim_2.start()
+
+    @property
+    def reader_filter(self) -> str:
+        return self._reader_filter
+
+    @reader_filter.setter
+    def reader_filter(self, value: str):
+        if value in ("none", "sepia", "warm", "dim"):
+            self._reader_filter = value
+            self.viewport().update()  # Repaint viewport with new color filter
+
+    def drawForeground(self, painter: QPainter, rect: QRectF):
+        """Draw active eye-care color filters over the reading viewport."""
+        super().drawForeground(painter, rect)
+        
+        if self._reader_filter == "sepia":
+            painter.fillRect(rect, QColor(230, 194, 128, 30))  # ~12% opacity sepia
+        elif self._reader_filter == "warm":
+            painter.fillRect(rect, QColor(255, 153, 51, 25))   # ~10% opacity warm amber
+        elif self._reader_filter == "dim":
+            painter.fillRect(rect, QColor(0, 0, 0, 50))        # ~20% opacity dimming overlay
 
     def _apply_fit_mode(self):
         """Apply the current fit mode to the displayed content."""
@@ -374,11 +424,12 @@ class ComicViewer(QGraphicsView):
 
 class PageNavigationBar(QWidget):
     """
-    Premium reader control bar showing page info, fitting controls, view modes, and zoom.
+    Premium reader control bar showing page info, fitting controls, view modes, filters, and zoom.
     """
     page_requested = pyqtSignal(int)
     fit_mode_requested = pyqtSignal(str)
     view_mode_requested = pyqtSignal(str)
+    filter_requested = pyqtSignal(str)
     fullscreen_requested = pyqtSignal()
     
     def __init__(self, parent=None):
@@ -527,7 +578,30 @@ class PageNavigationBar(QWidget):
         self._view_buttons["single"].setChecked(True)
         layout.addWidget(view_group)
         
-        # 6. Fullscreen Action Button
+        # 6. Eye-Care Filter Group (Segmented Control)
+        filter_group = QFrame()
+        filter_group.setObjectName("controlGroup")
+        filter_layout = QHBoxLayout(filter_group)
+        filter_layout.setContentsMargins(0, 0, 0, 0)
+        filter_layout.setSpacing(0)
+        
+        self._filter_buttons = {}
+        filters_list = [("Normal", "none"), ("Sepia", "sepia"), ("Warm", "warm"), ("Dim", "dim")]
+        self._filter_btn_group = QButtonGroup(self)
+        self._filter_btn_group.setExclusive(True)
+        
+        for label, code in filters_list:
+            btn = QPushButton(label)
+            btn.setCheckable(True)
+            btn.clicked.connect(lambda checked, c=code: self.filter_requested.emit(c))
+            self._filter_btn_group.addButton(btn)
+            filter_layout.addWidget(btn)
+            self._filter_buttons[code] = btn
+            
+        self._filter_buttons["none"].setChecked(True)
+        layout.addWidget(filter_group)
+        
+        # 7. Fullscreen Action Button
         self._fs_btn = QPushButton("📺 Fullscreen")
         self._fs_btn.setObjectName("actionBtn")
         self._fs_btn.clicked.connect(self.fullscreen_requested.emit)
@@ -545,7 +619,7 @@ class PageNavigationBar(QWidget):
         """Update the zoom display."""
         self._zoom_label.setText(f"{zoom * 100:.0f}%")
         
-    def update_modes(self, fit_mode: str, view_mode: str):
+    def update_modes(self, fit_mode: str, view_mode: str, filter_mode: str = "none"):
         """Sync active buttons in Segmented controls with current state."""
         btn_fit = self._fit_buttons.get(fit_mode)
         if btn_fit:
@@ -558,6 +632,12 @@ class PageNavigationBar(QWidget):
             btn_view.blockSignals(True)
             btn_view.setChecked(True)
             btn_view.blockSignals(False)
+            
+        btn_filter = self._filter_buttons.get(filter_mode)
+        if btn_filter:
+            btn_filter.blockSignals(True)
+            btn_filter.setChecked(True)
+            btn_filter.blockSignals(False)
             
     def _on_slider_changed(self, value: int):
         self.page_requested.emit(value)

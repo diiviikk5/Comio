@@ -450,8 +450,9 @@ class ComioMainWindow(QMainWindow):
         self._nav_bar.page_requested.connect(self._go_to_page)
         self._nav_bar.fit_mode_requested.connect(self._set_fit_mode)
         self._nav_bar.view_mode_requested.connect(self._set_view_mode)
+        self._nav_bar.filter_requested.connect(self._set_reader_filter)
         self._nav_bar.fullscreen_requested.connect(self._toggle_fullscreen)
-        self._nav_bar.update_modes(self._settings.fit_mode, self._settings.view_mode)
+        self._nav_bar.update_modes(self._settings.fit_mode, self._settings.view_mode, "none")
         reader_layout.addWidget(self._nav_bar)
 
         self._stack.addWidget(reader_container)
@@ -524,7 +525,7 @@ class ComioMainWindow(QMainWindow):
             # Restore preferred fit and view modes from settings
             self._viewer.view_mode = self._settings.view_mode
             self._viewer.fit_mode = self._settings.fit_mode
-            self._nav_bar.update_modes(self._viewer.fit_mode, self._viewer.view_mode)
+            self._nav_bar.update_modes(self._viewer.fit_mode, self._viewer.view_mode, self._viewer.reader_filter)
 
             # Check for manga mode
             if self._current_comic.metadata.is_manga:
@@ -634,14 +635,18 @@ class ComioMainWindow(QMainWindow):
     def _set_view_mode(self, mode: str):
         self._viewer.view_mode = mode
         self._settings.view_mode = mode
-        self._nav_bar.update_modes(self._viewer.fit_mode, self._viewer.view_mode)
+        self._nav_bar.update_modes(self._viewer.fit_mode, self._viewer.view_mode, self._viewer.reader_filter)
         if self._current_comic:
             self._go_to_page(self._viewer.current_page)
 
     def _set_fit_mode(self, mode: str):
         self._viewer.fit_mode = mode
         self._settings.fit_mode = mode
-        self._nav_bar.update_modes(self._viewer.fit_mode, self._viewer.view_mode)
+        self._nav_bar.update_modes(self._viewer.fit_mode, self._viewer.view_mode, self._viewer.reader_filter)
+
+    def _set_reader_filter(self, filter_mode: str):
+        self._viewer.reader_filter = filter_mode
+        self._nav_bar.update_modes(self._viewer.fit_mode, self._viewer.view_mode, filter_mode)
 
     # ── Theme ─────────────────────────────────────────────────────────
 
