@@ -112,6 +112,7 @@ class ComicViewer(QGraphicsView):
         self.setDragMode(QGraphicsView.DragMode.ScrollHandDrag)
         self.setTransformationAnchor(QGraphicsView.ViewportAnchor.AnchorUnderMouse)
         self.setResizeAnchor(QGraphicsView.ViewportAnchor.AnchorViewCenter)
+        self.setAlignment(Qt.AlignmentFlag.AlignCenter)
         self.setVerticalScrollBarPolicy(Qt.ScrollBarPolicy.ScrollBarAsNeeded)
         self.setHorizontalScrollBarPolicy(Qt.ScrollBarPolicy.ScrollBarAsNeeded)
         self.setBackgroundBrush(QColor("#0a0a0a"))
@@ -133,6 +134,11 @@ class ComicViewer(QGraphicsView):
         self._page_cache[page_index] = pixmap
         self._trim_cache()
         self._apply_fit_mode()
+        
+        # Center horizontally and scroll to top of page
+        scene_rect = self._scene.itemsBoundingRect()
+        self.centerOn(scene_rect.center().x(), scene_rect.top())
+        
         self._animate_fade_in()
         self.page_changed.emit(page_index)
 
@@ -157,6 +163,11 @@ class ComicViewer(QGraphicsView):
         self._page_cache[right_index] = right_pixmap
         self._trim_cache()
         self._apply_fit_mode()
+        
+        # Center horizontally and scroll to top of page
+        scene_rect = self._scene.itemsBoundingRect()
+        self.centerOn(scene_rect.center().x(), scene_rect.top())
+        
         self._animate_fade_in()
         self.page_changed.emit(self._current_page)
 

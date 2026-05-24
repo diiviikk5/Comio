@@ -246,7 +246,7 @@ class LibraryView(QWidget):
         self._grid_layout = QGridLayout(self._grid_container)
         self._grid_layout.setContentsMargins(20, 20, 20, 20)
         self._grid_layout.setSpacing(16)
-        self._grid_layout.setAlignment(Qt.AlignmentFlag.AlignTop | Qt.AlignmentFlag.AlignLeft)
+        self._grid_layout.setAlignment(Qt.AlignmentFlag.AlignTop | Qt.AlignmentFlag.AlignHCenter)
 
         scroll.setWidget(self._grid_container)
         layout.addWidget(scroll)
