@@ -19,8 +19,7 @@ export default function Home() {
       {/* ══════════════ NAVBAR ══════════════ */}
       <nav className={`navbar${scrolled ? " scrolled" : ""}`}>
         <div className="container navbar-inner">
-          <div className="navbar-logo">COMIO</div>
-          <div className="navbar-links">
+          <div className="navbar-links" style={{ marginLeft: "auto" }}>
             <a
               href="https://github.com/diiviikk5/Comio"
               target="_blank"
