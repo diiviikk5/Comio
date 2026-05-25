@@ -2,16 +2,6 @@
 
 import { useEffect, useState, useRef } from "react";
 
-/* ─── Comic cover placeholder data ──────────────────────── */
-const COMICS = [
-  { title: "The Phantom Realm", gradient: "linear-gradient(135deg, #1a1a2e, #16213e, #0f3460)" },
-  { title: "Crimson Thunder", gradient: "linear-gradient(135deg, #2d1b1b, #4a1515, #6b2020)" },
-  { title: "Stellar Odyssey", gradient: "linear-gradient(135deg, #0d1b2a, #1b2838, #1e3a5f)" },
-  { title: "Emerald Knight", gradient: "linear-gradient(135deg, #1a2e1a, #1e3e1e, #205020)" },
-  { title: "Dark Archives", gradient: "linear-gradient(135deg, #1a1a1a, #2a2020, #3a2525)" },
-  { title: "Neon Samurai", gradient: "linear-gradient(135deg, #1a1a2e, #2e1a3e, #4a1a4a)" },
-];
-
 const FEATURES = [
   {
     icon: "⚡",
@@ -83,9 +73,6 @@ export default function Home() {
             <a href="#features" onClick={(e) => { e.preventDefault(); scrollTo("features"); }}>
               <span className="nav-link-text">Features</span>
             </a>
-            <a href="#comics" onClick={(e) => { e.preventDefault(); scrollTo("comics"); }}>
-              <span className="nav-link-text">Browse</span>
-            </a>
             <a
               href="#download"
               className="navbar-cta"
@@ -114,13 +101,6 @@ export default function Home() {
               onClick={(e) => { e.preventDefault(); scrollTo("download"); }}
             >
               Download Free
-            </a>
-            <a
-              href="#comics"
-              className="btn btn-outline btn-lg"
-              onClick={(e) => { e.preventDefault(); scrollTo("comics"); }}
-            >
-              Browse Comics
             </a>
           </div>
         </div>
@@ -151,36 +131,6 @@ export default function Home() {
                 <span className="feature-icon">{f.icon}</span>
                 <h3 className="feature-title">{f.title}</h3>
                 <p className="feature-desc">{f.desc}</p>
-              </div>
-            ))}
-          </div>
-        </div>
-      </section>
-
-      {/* ══════════════ COMIC SHOWCASE ══════════════ */}
-      <section className="section" id="comics">
-        <div className="container">
-          <div className="animate-on-scroll">
-            <h2 className="section-title">Discover Free Comics</h2>
-            <span className="section-accent" />
-            <p className="section-subtitle">
-              Browse and read thousands of public domain comics from the Internet Archive, 
-              right inside COMIO.
-            </p>
-          </div>
-          <div className="comics-grid stagger-children">
-            {COMICS.map((c, i) => (
-              <div
-                key={i}
-                className="comic-card animate-on-scroll"
-                style={{ transitionDelay: `${i * 0.08}s` }}
-              >
-                <div
-                  className="comic-cover"
-                  style={{ background: c.gradient }}
-                >
-                  <div className="comic-title-overlay">{c.title}</div>
-                </div>
               </div>
             ))}
           </div>
